@@ -24,7 +24,7 @@ endif()
 
 idf_component_register(
 	REQUIRES "esp_http_server_utils"
-	SRC_DIRS "${GENERATED_CODE_DIR}"
+	SRC_DIRS ". ${GENERATED_CODE_DIR}"
 	INCLUDE_DIRS ${COMPONENT_PATH}/include ${GENERATED_CODE_DIR}
 	EMBED_FILES  ${SRV_FILES_LIST}
 )
