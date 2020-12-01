@@ -1,5 +1,9 @@
-# Hello World Example
+# ESP WAV player example
 
-Starts a FreeRTOS task to print "Hello World"
+Connect to ESP8266 I2S DAC like PCM5102 with pinout as below:
 
-See the README.md file in the upper level 'examples' directory for more information about examples.
+| pin name| function | gpio_num |
+|:---:|:---:|:---:|
+| LRCK |word select| GPIO_NUM_2 |
+| SCK  |continuous serial clock| GPIO_NUM_15 |
+| DIN  |serial data| GPIO_NUM_3 |
