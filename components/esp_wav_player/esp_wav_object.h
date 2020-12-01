@@ -20,8 +20,8 @@ typedef enum {
 } wav_obj_type_t;
 
 typedef struct {
-	uint8_t *file;
-	uint8_t *read_ptr;
+	const uint8_t *file;
+	const uint8_t *read_ptr;
 }embed_wav_obj_t;
 
 typedef struct {
