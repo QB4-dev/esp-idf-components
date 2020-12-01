@@ -10,44 +10,11 @@
 #include <esp_err.h>
 #include <driver/i2s.h>
 
+#include <esp_wav_object.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef enum {
-	WAV_PROGMEM  = 0,
-	WAV_SPIFFS   = 1,
-} wav_obj_type_t;
-
-typedef struct {
-	uint8_t *file;
-	uint8_t *read_ptr;
-}embed_wav_obj_t;
-
-typedef struct {
-	const char *file;
-	int fd;
-}spiffs_wav_obj_t;
-
-typedef struct {
-	uint8_t  num_channels;
-	uint8_t  bit_depth;
-	uint32_t sample_rate;
-	uint32_t sample_alignment;
-	uint32_t data_bytes;
-}wav_properties_t;
-
-typedef struct {
-	wav_obj_type_t type;
-
-	union {
-		embed_wav_obj_t  embed;
-		spiffs_wav_obj_t spiffs;
-	}data;
-
-	//Common .wav file properties
-	wav_properties_t props;
-}wav_obj_t;
 
 typedef struct {
 	SemaphoreHandle_t mutex;
