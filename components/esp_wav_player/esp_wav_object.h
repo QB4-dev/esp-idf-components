@@ -15,20 +15,29 @@ extern "C" {
 #endif
 
 typedef enum {
-	WAV_PROGMEM  = 0,
-	WAV_SPIFFS   = 1,
+	WAV_NONE   = 0,
+	WAV_EMBED  = 1,
+	WAV_SPIFFS = 2,
 } wav_obj_type_t;
 
-typedef struct {
-	const uint8_t *file;
-	const uint8_t *read_ptr;
-}embed_wav_obj_t;
+struct embed_wav_data{
+	uint8_t *addr;
+};
+
+struct spiffs_wav_data{
+	const char *path;
+};
 
 typedef struct {
-	const char *file;
-	int fd;
-}spiffs_wav_obj_t;
+	wav_obj_type_t type;
 
+	union {
+		struct embed_wav_data  embed;
+		struct spiffs_wav_data spiffs;
+	}data;
+}wav_obj_t;
+
+//Common .wav file properties
 typedef struct {
 	uint8_t  num_channels;
 	uint8_t  bit_depth;
@@ -39,19 +48,16 @@ typedef struct {
 
 typedef struct {
 	wav_obj_type_t type;
-
 	union {
-		embed_wav_obj_t  embed;
-		spiffs_wav_obj_t spiffs;
-	}data;
-
-	//Common .wav file properties
+		uint8_t *embed_rdptr; //embedded data read pointer
+		int      spiffs_fd;   //SPIFFS file descriptor
+	}io;
 	wav_properties_t props;
-}wav_obj_t;
+}wav_handle_t;
 
-bool wav_object_open(wav_obj_t *wav);
-int wav_object_read(wav_obj_t *wav, void *buf, size_t count);
-int wav_object_close(wav_obj_t *wav);
+bool wav_object_open(wav_obj_t *wav, wav_handle_t *wavh);
+int wav_object_read(wav_handle_t *wavh, void *buf, size_t count);
+int wav_object_close(wav_handle_t *wavh);
 
 #ifdef __cplusplus
 }

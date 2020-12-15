@@ -4,6 +4,7 @@
 #include <esp_system.h>
 #include <esp_log.h>
 #include <sys/param.h>
+#include <cJSON.h>
 
 static const char *TAG="UPLOAD";
 
@@ -147,8 +148,26 @@ int esp_http_upload_check_final_boundary(httpd_req_t *req, char *boundary, size_
 	boundary:-----------------------------371500130728362684651932529351
 	buf: CRLF-----------------------------371500130728362684651932529351--*/
 	if(strncmp(buf+2,boundary,boundary_len-2) != 0){
-		ESP_LOGE(TAG,"final boundary not found=%s",buf+2);
+		ESP_LOGE(TAG,"final boundary not found");
 		return -1;
 	}
 	return bytes_read;
+}
+
+esp_err_t esp_http_upload_json_status(httpd_req_t *req, esp_err_t rc, int uploaded)
+{
+	cJSON *js = cJSON_CreateObject();
+	if(!js)
+		return ESP_ERR_NO_MEM;
+
+	cJSON_AddStringToObject(js,"result",esp_err_to_name(rc));
+	cJSON_AddNumberToObject(js,"bytes_uploaded",uploaded);
+
+	char *js_txt = cJSON_Print(js);
+	cJSON_Delete(js);
+
+	httpd_resp_set_type(req,HTTPD_TYPE_JSON);
+	httpd_resp_send(req, js_txt, -1);
+	free(js_txt);
+	return ESP_OK;
 }

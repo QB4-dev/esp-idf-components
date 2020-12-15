@@ -14,7 +14,8 @@ extern "C"
 typedef struct {
 	bool skip_reboot;
 	void (*on_update_init)(void*);
-	void (*on_update_done)(void*);
+	void (*on_update_complete)(void*);
+	void (*on_update_failed)(void*);
 	void *arg;
 }esp_ota_actions_t;
 
@@ -33,7 +34,7 @@ typedef struct {
 	static esp_ota_actions_t ota_actions = {
 		.skip_reboot = false,
 		.on_update_init = on_init,
-		.on_update_done = on_done,
+		.on_update_complete = on_complete,
 		.arg = "FOTA_ARG"
 	};
  *

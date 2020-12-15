@@ -43,32 +43,32 @@ esp_err_t esp_httpd_spiffs_upload_handler(httpd_req_t *req)
 
 	rc = esp_http_get_boundary(req,boundary);
 	if( rc != ESP_OK)
-		return rc;
+		return esp_http_upload_json_status(req,rc,0);
 
 	//Read request data
 	bytes_read = esp_http_upload_check_initial_boundary(req,boundary,bytes_left);
 	if(bytes_read > 0)
 		bytes_left -= bytes_read;
 	else
-		return ESP_ERR_INVALID_ARG;
+		return esp_http_upload_json_status(req,ESP_ERR_INVALID_ARG,0);
 
 	bytes_read = esp_http_upload_find_multipart_header_end(req,bytes_left);
 	if(bytes_read > 0)
 		bytes_left -= bytes_read;
 	else
-		return ESP_ERR_INVALID_ARG;
+		return esp_http_upload_json_status(req,ESP_ERR_INVALID_ARG,0);
 
 	const char *upload_path = req->user_ctx;
 	if(!upload_path){
 		ESP_LOGE(TAG, "upload path not found");
-		return ESP_ERR_INVALID_ARG;
+		return esp_http_upload_json_status(req,ESP_ERR_INVALID_ARG,0);
 	}
 
 	ESP_LOGI(TAG, "opening file %s",upload_path);
 	FILE* f = fopen(upload_path, "w");
 	if (f == NULL) {
 		ESP_LOGE(TAG, "Failed to open file for writing");
-		return ESP_FAIL;
+		return esp_http_upload_json_status(req,ESP_FAIL,0);
 	}
 
 	//now we have content data until end boundary
@@ -83,7 +83,7 @@ esp_err_t esp_httpd_spiffs_upload_handler(httpd_req_t *req)
 	//prepare buffer, keep in mind to free it before return call
 	char *buf = (char *)malloc(UPLOAD_BUF_LEN);
 	if(!buf)
-		return ESP_ERR_NO_MEM;
+		return esp_http_upload_json_status(req,ESP_ERR_NO_MEM,0);
 
 	while(bytes_written < binary_size) {
 		if(bytes_left > UPLOAD_BUF_LEN)
@@ -99,7 +99,7 @@ esp_err_t esp_httpd_spiffs_upload_handler(httpd_req_t *req)
 			ESP_LOGE(TAG, "httpd_req_recv error: err=0x%d", recv);
 			free(buf);
 			fclose(f);
-			return ESP_FAIL;
+			return esp_http_upload_json_status(req,ESP_FAIL,bytes_written);
 		}
 		bytes_left -= recv;
 
@@ -108,7 +108,7 @@ esp_err_t esp_httpd_spiffs_upload_handler(httpd_req_t *req)
 			ESP_LOGE(TAG, "spiffs write error: err=0x%d", wr);
 			free(buf);
 			fclose(f);
-			return ESP_FAIL;
+			return esp_http_upload_json_status(req,ESP_FAIL,bytes_written);
 		}
 		bytes_written+=recv;
 		ESP_LOGI(TAG,"file upload %d/%d bytes",bytes_written,binary_size);
@@ -120,13 +120,9 @@ esp_err_t esp_httpd_spiffs_upload_handler(httpd_req_t *req)
 	if(bytes_read > 0)
 		bytes_left -= bytes_read;
 	else
-		return ESP_FAIL;
+		return esp_http_upload_json_status(req,ESP_FAIL,bytes_written);
 
 	ESP_LOGI(TAG,"%d file bytes uploaded OK",bytes_written);
-
-	httpd_resp_set_status(req, "200 OK");
-	httpd_resp_set_type(req, HTTPD_TYPE_TEXT);
-	ESP_ERROR_CHECK(httpd_resp_send(req, "", -1));
-	return ESP_OK;
+	return esp_http_upload_json_status(req,ESP_OK,bytes_written);
 }
 

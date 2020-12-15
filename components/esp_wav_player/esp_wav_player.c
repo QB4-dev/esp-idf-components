@@ -132,12 +132,12 @@ static bool esp_decode_wav_header(uint8_t *buf, wav_properties_t *props)
 	return true;
 }
 
-static void i2s_set_volume( int8_t vol, wav_obj_t *wav, uint8_t *buf, size_t len)
+static void i2s_set_volume( int8_t vol, wav_handle_t *wavh, uint8_t *buf, size_t len)
 {
 	uint8_t  *sample_8bit;
 	int16_t  *sample_16bit;
 
-	switch(wav->props.bit_depth){
+	switch(wavh->props.bit_depth){
 	case 8:
 		sample_8bit = buf;
 		for(int i=0; i<len; i++){
@@ -157,11 +157,11 @@ static void i2s_set_volume( int8_t vol, wav_obj_t *wav, uint8_t *buf, size_t len
 	}
 }
 
-static void i2s_tda_compat(wav_obj_t *wav, uint8_t *buf, size_t len)
+static void i2s_tda_compat(wav_handle_t *wavh, uint8_t *buf, size_t len)
 {
 	int16_t  *sample_16bit;
 
-	switch(wav->props.bit_depth){
+	switch(wavh->props.bit_depth){
 	case 8:
 		break;
 	case 16:
@@ -176,28 +176,27 @@ static void i2s_tda_compat(wav_obj_t *wav, uint8_t *buf, size_t len)
 	}
 }
 
-static int i2s_play_wav(esp_wav_player_t *player)
+static esp_err_t i2s_play_wav(esp_wav_player_t *player)
 {
 	i2s_port_t i2s_port;
-	wav_obj_t *wav;
+	wav_handle_t *wavh;
 	uint8_t *audio_buf;
 	uint8_t *audio_ptr;
-	uint32_t in_buf;
-	uint32_t div;
+	int in_buf;
+	int div;
 	size_t bytes_left;
 	//those may change during play
 	bool keep_playing;
 	uint8_t volume;
 
 	SEMAPHORE_TAKE(player);
-	assert(player->wav);
-	wav = player->wav;
+	wavh = &player->wavh;
 	i2s_port = player->i2s_port;
 	player->is_playing = true;
 	SEMAPHORE_GIVE(player);
 
-	div = (wav->props.sample_alignment == 2)?2:1;
-	bytes_left = wav->props.data_bytes;
+	div = (wavh->props.sample_alignment == 2)?2:1;
+	bytes_left = wavh->props.data_bytes;
 
 	//prepare buffer
 	audio_buf = malloc(AUDIO_BUF_LEN);
@@ -206,7 +205,7 @@ static int i2s_play_wav(esp_wav_player_t *player)
 		return ESP_ERR_NO_MEM;
 	}
 
-	i2s_set_clk(i2s_port, wav->props.sample_rate/div, wav->props.bit_depth, wav->props.num_channels);
+	i2s_set_clk(i2s_port, wavh->props.sample_rate/div, wavh->props.bit_depth, wavh->props.num_channels);
 	i2s_start(i2s_port);
 	while(bytes_left > 0){
 		SEMAPHORE_TAKE(player);
@@ -216,20 +215,25 @@ static int i2s_play_wav(esp_wav_player_t *player)
 		if(!keep_playing)
 			break;
 
-		in_buf = wav_object_read(wav,audio_buf,MIN(bytes_left,AUDIO_BUF_LEN));
+		in_buf = wav_object_read(wavh,audio_buf,MIN(bytes_left,AUDIO_BUF_LEN));
+		if(in_buf < 0){
+			ESP_LOGE(TAG, "wav_object_read error");
+			break;
+		}
+
 		audio_ptr = audio_buf;
 		bytes_left -= in_buf;
 
-		i2s_set_volume(volume,wav,audio_buf,AUDIO_BUF_LEN);
+		i2s_set_volume(volume,wavh,audio_buf,AUDIO_BUF_LEN);
 		if(player->tda_1543_mode)
-			i2s_tda_compat(wav,audio_buf,AUDIO_BUF_LEN);
+			i2s_tda_compat(wavh,audio_buf,AUDIO_BUF_LEN);
 
 		for(size_t i2s_wr = 0;audio_ptr-audio_buf < in_buf;){
-			i2s_write(i2s_port,audio_ptr,in_buf,&i2s_wr,100);
+			i2s_write(i2s_port,audio_ptr,in_buf,&i2s_wr,100/portTICK_RATE_MS);
 			audio_ptr += i2s_wr;
 		}
 	}
-	wav_object_close(wav);
+	wav_object_close(wavh);
 	free(audio_buf);
 
 	SEMAPHORE_TAKE(player);
@@ -255,27 +259,27 @@ esp_err_t esp_wav_player_play(esp_wav_player_t *player, wav_obj_t *wav)
 	ESP_ERROR_CHECK(esp_wav_player_is_playing(player,&playing));
 	if(playing){
 		ESP_LOGW(TAG, "already playing");
-		return ESP_FAIL;
+		return ESP_ERR_INVALID_STATE;
 	}
 
-	if(!wav_object_open(wav)){
+	if(!wav)
+		return ESP_ERR_INVALID_ARG;
+
+	if(!wav_object_open(wav,&player->wavh)){
 		ESP_LOGE(TAG, "wav_object_open");
 		return ESP_FAIL;
 	}
 
-	if( wav_object_read(wav, header_buf, sizeof(wav_header_t)) < 0){
+	if( wav_object_read(&player->wavh, header_buf, sizeof(wav_header_t)) < 0){
 		ESP_LOGE(TAG, "wav_object_read");
-		wav_object_close(wav);
+		wav_object_close(&player->wavh);
 		return ESP_FAIL;
 	}
 
-	if(!esp_decode_wav_header(header_buf, &wav->props))
+	if(!esp_decode_wav_header(header_buf, &player->wavh.props))
 		return ESP_FAIL;
 
-	SEMAPHORE_TAKE(player);
-	player->wav = wav;
 	xTaskCreate(wav_play_task, "wav_play", 1024, player, player->play_task_priority, NULL);
-	SEMAPHORE_GIVE(player);
 	return ESP_OK;
 }
 

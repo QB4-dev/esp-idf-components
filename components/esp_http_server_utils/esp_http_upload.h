@@ -52,6 +52,16 @@ int esp_http_upload_find_multipart_header_end(httpd_req_t *req, size_t bytes_lef
  */
 int esp_http_upload_check_final_boundary(httpd_req_t *req, char *boundary, size_t bytes_left);
 
+/**
+ * @brief Return json upload status
+ *
+ * @req The request being responded to
+ * @rc Upload result code
+ * @bytuploaded es_left Request bytes left
+ * @return ESP_OK or ESP_ERR_NO_MEM if json object cannot be created
+ */
+esp_err_t esp_http_upload_json_status(httpd_req_t *req, esp_err_t rc, int uploaded);
+
 #ifdef __cplusplus
 }
 #endif

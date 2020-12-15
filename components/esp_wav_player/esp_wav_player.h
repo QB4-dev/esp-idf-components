@@ -22,10 +22,10 @@ typedef struct {
 	i2s_config_t i2s_config;
 	i2s_pin_config_t i2s_pin_config;
 	uint8_t volume;
-	wav_obj_t *wav;
 	bool is_playing;
 	bool tda_1543_mode;  //for TDA1543
 	uint8_t play_task_priority;
+	wav_handle_t wavh;
 }esp_wav_player_t;
 
 esp_err_t esp_wav_player_init(esp_wav_player_t *player);
