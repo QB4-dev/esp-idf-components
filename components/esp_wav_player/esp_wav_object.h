@@ -37,6 +37,14 @@ typedef struct {
 	}data;
 }wav_obj_t;
 
+typedef struct {
+	wav_obj_type_t type;
+	union {
+		uint8_t *embed_rdptr; //embedded data read pointer
+		int      spiffs_fd;   //SPIFFS file descriptor
+	}io;
+}wav_handle_t;
+
 //Common .wav file properties
 typedef struct {
 	uint8_t  num_channels;
@@ -45,15 +53,6 @@ typedef struct {
 	uint32_t sample_alignment;
 	uint32_t data_bytes;
 }wav_properties_t;
-
-typedef struct {
-	wav_obj_type_t type;
-	union {
-		uint8_t *embed_rdptr; //embedded data read pointer
-		int      spiffs_fd;   //SPIFFS file descriptor
-	}io;
-	wav_properties_t props;
-}wav_handle_t;
 
 bool wav_object_open(wav_obj_t *wav, wav_handle_t *wavh);
 int wav_object_read(wav_handle_t *wavh, void *buf, size_t count);

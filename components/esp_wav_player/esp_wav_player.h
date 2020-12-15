@@ -21,21 +21,29 @@ typedef struct {
 	i2s_port_t i2s_port;
 	i2s_config_t i2s_config;
 	i2s_pin_config_t i2s_pin_config;
+	uint8_t task_priority;
 	uint8_t volume;
 	bool is_playing;
 	bool tda_1543_mode;  //for TDA1543
-	uint8_t play_task_priority;
-	wav_handle_t wavh;
+	uint8_t queue_len;
+	QueueHandle_t queue;
 }esp_wav_player_t;
 
 esp_err_t esp_wav_player_init(esp_wav_player_t *player);
 esp_err_t esp_wav_player_deinit(esp_wav_player_t *player);
 
 esp_err_t esp_wav_player_is_playing(esp_wav_player_t *player, bool *state);
+
 esp_err_t esp_wav_player_set_volume(esp_wav_player_t *player, uint8_t vol);
+esp_err_t esp_wav_player_get_volume(esp_wav_player_t *player, uint8_t *vol);
 
 esp_err_t esp_wav_player_play(esp_wav_player_t *player, wav_obj_t *wav);
 esp_err_t esp_wav_player_stop(esp_wav_player_t *player);
+
+esp_err_t esp_wav_player_add_to_queue(esp_wav_player_t *player, wav_obj_t *wav);
+esp_err_t esp_wav_player_reset_queue(esp_wav_player_t *player);
+esp_err_t esp_wav_player_play_queued(esp_wav_player_t *player);
+
 
 #ifdef __cplusplus
 }

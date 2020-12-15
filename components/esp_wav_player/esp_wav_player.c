@@ -5,6 +5,7 @@
 #include <sys/param.h>
 
 #include <freertos/task.h>
+#include <freertos/queue.h>
 #include <esp_log.h>
 #include <esp_err.h>
 
@@ -36,6 +37,8 @@ static const char *TAG="WAV";
 
 esp_err_t esp_wav_player_init(esp_wav_player_t *player)
 {
+	esp_err_t rc;
+
 	player->mutex = xSemaphoreCreateMutex();
 	if (!player->mutex){
 		ESP_LOGE(TAG, "Could not create player mutex");
@@ -44,12 +47,27 @@ esp_err_t esp_wav_player_init(esp_wav_player_t *player)
 	SEMAPHORE_TAKE(player);
 	ESP_ERROR_CHECK(i2s_driver_install(player->i2s_port, &player->i2s_config, 0, NULL));
 	ESP_ERROR_CHECK(i2s_set_pin(player->i2s_port, &player->i2s_pin_config));
-	if(!player->play_task_priority)
-		player->play_task_priority = PLAYER_DEFAULT_TASK_PRIO;
+
 	player->volume = 100;
 	player->is_playing = false;
+
+	if(!player->task_priority)
+		player->task_priority = PLAYER_DEFAULT_TASK_PRIO;
+
+	if(player->queue_len == 0){
+		ESP_LOGW(TAG, "player queue_len not set!");
+		player->queue_len = 1;
+	}
+	player->queue = xQueueCreate(player->queue_len,sizeof(wav_obj_t));
+	if(!player->queue){
+		ESP_LOGE(TAG, "cannot create player queue");
+		rc = ESP_ERR_NO_MEM;
+	} else {
+		ESP_LOGD(TAG, "player init OK");
+		rc = ESP_OK;
+	}
 	SEMAPHORE_GIVE(player);
-	return ESP_OK;
+	return rc;
 }
 
 esp_err_t esp_wav_player_deinit(esp_wav_player_t *player)
@@ -58,6 +76,8 @@ esp_err_t esp_wav_player_deinit(esp_wav_player_t *player)
 	ESP_ERROR_CHECK(i2s_zero_dma_buffer(player->i2s_port));
 	ESP_ERROR_CHECK(i2s_stop(player->i2s_port));
 	ESP_ERROR_CHECK(i2s_driver_uninstall(player->i2s_port));
+	if(player->queue)
+		vQueueDelete(player->queue);
 	SEMAPHORE_GIVE(player);
 	vSemaphoreDelete(player->mutex);
 	return ESP_OK;
@@ -65,7 +85,7 @@ esp_err_t esp_wav_player_deinit(esp_wav_player_t *player)
 
 esp_err_t esp_wav_player_is_playing(esp_wav_player_t *player, bool *state)
 {
-	if(!state)
+	if(!player || !state)
 		return ESP_ERR_INVALID_ARG;
 	SEMAPHORE_TAKE(player);
 	*state = player->is_playing;
@@ -73,10 +93,32 @@ esp_err_t esp_wav_player_is_playing(esp_wav_player_t *player, bool *state)
 	return ESP_OK;
 }
 
-esp_err_t esp_wav_player_set_volume(esp_wav_player_t *player, uint8_t vol)
+static esp_err_t esp_wav_player_set_playing_state(esp_wav_player_t *player, bool state)
 {
 	SEMAPHORE_TAKE(player);
+	player->is_playing = state;
+	SEMAPHORE_GIVE(player);
+	return ESP_OK;
+}
+
+esp_err_t esp_wav_player_set_volume(esp_wav_player_t *player, uint8_t vol)
+{
+	if(!player)
+		return ESP_ERR_INVALID_ARG;
+
+	SEMAPHORE_TAKE(player);
 	player->volume = vol;
+	SEMAPHORE_GIVE(player);
+	return ESP_OK;
+}
+
+esp_err_t esp_wav_player_get_volume(esp_wav_player_t *player, uint8_t *vol)
+{
+	if(!player || !vol)
+		return ESP_ERR_INVALID_ARG;
+
+	SEMAPHORE_TAKE(player);
+	*vol = player->volume;
 	SEMAPHORE_GIVE(player);
 	return ESP_OK;
 }
@@ -124,20 +166,22 @@ static bool esp_decode_wav_header(uint8_t *buf, wav_properties_t *props)
 	ESP_LOGD(TAG, "data_bytes=%d", header->data_bytes);
 
 	//set properties
-	props->num_channels = header->num_channels;
-	props->bit_depth = header->bit_depth;
-	props->sample_rate = header->sample_rate;
-	props->sample_alignment = header->sample_alignment;
-	props->data_bytes = header->data_bytes;
+	if(props != NULL){
+		props->num_channels = header->num_channels;
+		props->bit_depth = header->bit_depth;
+		props->sample_rate = header->sample_rate;
+		props->sample_alignment = header->sample_alignment;
+		props->data_bytes = header->data_bytes;
+	}
 	return true;
 }
 
-static void i2s_set_volume( int8_t vol, wav_handle_t *wavh, uint8_t *buf, size_t len)
+static void i2s_volume_control(int8_t vol, wav_properties_t *wav_props, uint8_t *buf, size_t len)
 {
 	uint8_t  *sample_8bit;
 	int16_t  *sample_16bit;
 
-	switch(wavh->props.bit_depth){
+	switch(wav_props->bit_depth){
 	case 8:
 		sample_8bit = buf;
 		for(int i=0; i<len; i++){
@@ -157,11 +201,11 @@ static void i2s_set_volume( int8_t vol, wav_handle_t *wavh, uint8_t *buf, size_t
 	}
 }
 
-static void i2s_tda_compat(wav_handle_t *wavh, uint8_t *buf, size_t len)
+static void i2s_tda_compat(wav_properties_t *wav_props, uint8_t *buf, size_t len)
 {
 	int16_t  *sample_16bit;
 
-	switch(wavh->props.bit_depth){
+	switch(wav_props->bit_depth){
 	case 8:
 		break;
 	case 16:
@@ -176,10 +220,13 @@ static void i2s_tda_compat(wav_handle_t *wavh, uint8_t *buf, size_t len)
 	}
 }
 
-static esp_err_t i2s_play_wav(esp_wav_player_t *player)
+static esp_err_t i2s_play_wav(esp_wav_player_t *player, wav_obj_t *wav)
 {
+	uint8_t header_buf[sizeof(wav_header_t)];
+	wav_properties_t wav_props;
+	wav_handle_t wavh;
+
 	i2s_port_t i2s_port;
-	wav_handle_t *wavh;
 	uint8_t *audio_buf;
 	uint8_t *audio_ptr;
 	int in_buf;
@@ -189,104 +236,168 @@ static esp_err_t i2s_play_wav(esp_wav_player_t *player)
 	bool keep_playing;
 	uint8_t volume;
 
-	SEMAPHORE_TAKE(player);
-	wavh = &player->wavh;
-	i2s_port = player->i2s_port;
-	player->is_playing = true;
-	SEMAPHORE_GIVE(player);
+	if(!wav)
+		return ESP_ERR_INVALID_ARG;
 
-	div = (wavh->props.sample_alignment == 2)?2:1;
-	bytes_left = wavh->props.data_bytes;
+	if(!wav_object_open(wav,&wavh)){
+		ESP_LOGE(TAG, "wav_obj open error");
+		return ESP_FAIL;
+	}
+
+	if( wav_object_read(&wavh, header_buf, sizeof(wav_header_t)) < 0){
+		ESP_LOGE(TAG, "wav_obj read error");
+		wav_object_close(&wavh);
+		return ESP_FAIL;
+	}
+
+	if(!esp_decode_wav_header(header_buf, &wav_props)){
+		wav_object_close(&wavh);
+		return ESP_FAIL;
+	}
+
+	div = (wav_props.sample_alignment == 2)?2:1;
+	bytes_left = wav_props.data_bytes;
 
 	//prepare buffer
 	audio_buf = malloc(AUDIO_BUF_LEN);
 	if(!audio_buf){
-		ESP_LOGE(TAG, "audio_buf malloc error");
+		ESP_LOGE(TAG, "audio buf malloc error");
 		return ESP_ERR_NO_MEM;
 	}
+	SEMAPHORE_TAKE(player);
+	i2s_port = player->i2s_port;
+	player->is_playing = true;
 
-	i2s_set_clk(i2s_port, wavh->props.sample_rate/div, wavh->props.bit_depth, wavh->props.num_channels);
+	i2s_set_clk(i2s_port, wav_props.sample_rate/div, wav_props.bit_depth, wav_props.num_channels);
 	i2s_start(i2s_port);
+	SEMAPHORE_GIVE(player);
+
 	while(bytes_left > 0){
-		SEMAPHORE_TAKE(player);
-		keep_playing = player->is_playing;
-		volume = player->volume;
-		SEMAPHORE_GIVE(player);
+		esp_wav_player_is_playing(player,&keep_playing);
+		esp_wav_player_get_volume(player,&volume);
+
 		if(!keep_playing)
 			break;
 
-		in_buf = wav_object_read(wavh,audio_buf,MIN(bytes_left,AUDIO_BUF_LEN));
+		in_buf = wav_object_read(&wavh,audio_buf,MIN(bytes_left,AUDIO_BUF_LEN));
 		if(in_buf < 0){
-			ESP_LOGE(TAG, "wav_object_read error");
+			ESP_LOGE(TAG, "wav obj read error");
 			break;
 		}
 
 		audio_ptr = audio_buf;
 		bytes_left -= in_buf;
 
-		i2s_set_volume(volume,wavh,audio_buf,AUDIO_BUF_LEN);
+		i2s_volume_control(volume,&wav_props,audio_buf,AUDIO_BUF_LEN);
 		if(player->tda_1543_mode)
-			i2s_tda_compat(wavh,audio_buf,AUDIO_BUF_LEN);
+			i2s_tda_compat(&wav_props,audio_buf,AUDIO_BUF_LEN);
 
 		for(size_t i2s_wr = 0;audio_ptr-audio_buf < in_buf;){
 			i2s_write(i2s_port,audio_ptr,in_buf,&i2s_wr,100/portTICK_RATE_MS);
 			audio_ptr += i2s_wr;
 		}
 	}
-	wav_object_close(wavh);
+	wav_object_close(&wavh);
 	free(audio_buf);
-
-	SEMAPHORE_TAKE(player);
-	player->is_playing = false;
-	SEMAPHORE_GIVE(player);
 	return ESP_OK;
 }
 
-static void wav_play_task(void *arg)
+static void wav_play_queue_task(void *arg)
 {
 	esp_wav_player_t *player = arg;
-	assert(player);
-	i2s_play_wav(player);
+	wav_obj_t wav_obj;
+
+	if(!player)
+		vTaskDelete(NULL);
+
+	while(xQueueReceive(player->queue,&wav_obj,100/portTICK_RATE_MS)){
+		i2s_play_wav(player,&wav_obj);
+	}
+	esp_wav_player_set_playing_state(player,false);
 	vTaskDelete(NULL);
 }
 
-esp_err_t esp_wav_player_play(esp_wav_player_t *player, wav_obj_t *wav)
+static esp_err_t wav_is_valid(wav_obj_t *wav)
 {
 	uint8_t header_buf[sizeof(wav_header_t)];
-	bool playing;
+	wav_handle_t wavh;
 
-	ESP_LOGD(TAG, "play wav...");
+	if(!wav_object_open(wav,&wavh)){
+		ESP_LOGE(TAG, "wav_obj open error");
+		return ESP_FAIL;
+	}
+
+	if( wav_object_read(&wavh, header_buf, sizeof(wav_header_t)) < 0){
+		ESP_LOGE(TAG, "wav_obj read error");
+		wav_object_close(&wavh);
+		return ESP_FAIL;
+	}
+	wav_object_close(&wavh);
+
+	if(!esp_decode_wav_header(header_buf, NULL))
+		return ESP_FAIL;
+	else
+		return ESP_OK;
+}
+
+esp_err_t esp_wav_player_add_to_queue(esp_wav_player_t *player, wav_obj_t *wav)
+{
+	if(!wav)
+		return ESP_ERR_INVALID_ARG;
+
+	if(!player->queue)
+		return ESP_ERR_NOT_FOUND;
+
+	if(!!wav_is_valid(wav))
+		return ESP_ERR_INVALID_ARG;
+
+	if(xQueueSend(player->queue,wav,100/portTICK_RATE_MS) == errQUEUE_FULL){
+		ESP_LOGE(TAG, "queue full");
+		return ESP_ERR_NO_MEM;
+	}
+	return ESP_OK;
+}
+
+esp_err_t esp_wav_player_reset_queue(esp_wav_player_t *player)
+{
+	if(!player->queue)
+		return ESP_ERR_NOT_FOUND;
+
+	xQueueReset(player->queue);
+	return ESP_OK;
+}
+
+esp_err_t esp_wav_player_play_queued(esp_wav_player_t *player)
+{
+	bool playing;
 	ESP_ERROR_CHECK(esp_wav_player_is_playing(player,&playing));
 	if(playing){
 		ESP_LOGW(TAG, "already playing");
 		return ESP_ERR_INVALID_STATE;
 	}
 
-	if(!wav)
-		return ESP_ERR_INVALID_ARG;
+	if(uxQueueMessagesWaiting(player->queue) == 0)
+		return ESP_ERR_NOT_FOUND;
 
-	if(!wav_object_open(wav,&player->wavh)){
-		ESP_LOGE(TAG, "wav_object_open");
+	if(xTaskCreate(wav_play_queue_task, "wav_play", 1024, player, player->task_priority, NULL) != pdPASS){
+		ESP_LOGE(TAG, "cannot create play task");
 		return ESP_FAIL;
 	}
-
-	if( wav_object_read(&player->wavh, header_buf, sizeof(wav_header_t)) < 0){
-		ESP_LOGE(TAG, "wav_object_read");
-		wav_object_close(&player->wavh);
-		return ESP_FAIL;
-	}
-
-	if(!esp_decode_wav_header(header_buf, &player->wavh.props))
-		return ESP_FAIL;
-
-	xTaskCreate(wav_play_task, "wav_play", 1024, player, player->play_task_priority, NULL);
 	return ESP_OK;
+}
+
+esp_err_t esp_wav_player_play(esp_wav_player_t *player, wav_obj_t *wav)
+{
+	esp_err_t rc;
+	rc = esp_wav_player_add_to_queue(player,wav);
+	if(rc != ESP_OK)
+		return rc;
+
+	return esp_wav_player_play_queued(player);
 }
 
 esp_err_t esp_wav_player_stop(esp_wav_player_t *player)
 {
-	SEMAPHORE_TAKE(player);
-	player->is_playing = false;
-	SEMAPHORE_GIVE(player);
+	esp_wav_player_set_playing_state(player,false);
 	return ESP_OK;
 }
