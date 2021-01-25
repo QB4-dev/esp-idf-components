@@ -14,9 +14,9 @@
 #define PLAYER_ACCESS_TIMEOUT 1000 //ms
 #define PLAYER_DEFAULT_TASK_PRIO 5
 
-#define AUDIO_BUF_LEN 2048
+#define AUDIO_BUF_LEN 1024
 #define FCC(a,b,c,d)  ((uint32_t) (( (d)<<24) | ((c)<<16) | ((b)<<8) | (a) )) /* FourCC */
-#define	LD_DWORD(ptr) (uint32_t)(*(uint32_t*)(uint8_t*)(ptr))
+#define LD_DWORD(ptr) (uint32_t)(*(uint32_t*)(uint8_t*)(ptr))
 #define BSWAP(b)      ((b>>8)|(b<<8)) //for TDA 1543 I2S frame
 
 static const char *TAG="WAV";
@@ -35,7 +35,7 @@ static const char *TAG="WAV";
 	} \
 	} while (0)
 
-esp_err_t esp_wav_player_init(esp_wav_player_t *player)
+esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pin_conf, i2s_config_t *i2s_conf)
 {
 	esp_err_t rc;
 
@@ -45,8 +45,8 @@ esp_err_t esp_wav_player_init(esp_wav_player_t *player)
 		return ESP_FAIL;
 	}
 	SEMAPHORE_TAKE(player);
-	ESP_ERROR_CHECK(i2s_driver_install(player->i2s_port, &player->i2s_config, 0, NULL));
-	ESP_ERROR_CHECK(i2s_set_pin(player->i2s_port, &player->i2s_pin_config));
+	ESP_ERROR_CHECK(i2s_driver_install(player->i2s_port, i2s_conf, 0, NULL));
+	ESP_ERROR_CHECK(i2s_set_pin(player->i2s_port, i2s_pin_conf));
 
 	player->volume = 100;
 	player->is_playing = false;
@@ -289,7 +289,7 @@ static esp_err_t i2s_play_wav(esp_wav_player_t *player, wav_obj_t *wav)
 		bytes_left -= in_buf;
 
 		i2s_volume_control(volume,&wav_props,audio_buf,AUDIO_BUF_LEN);
-		if(player->tda_1543_mode)
+		if(player->tda1543_mode)
 			i2s_tda_compat(&wav_props,audio_buf,AUDIO_BUF_LEN);
 
 		for(size_t i2s_wr = 0;audio_ptr-audio_buf < in_buf;){
@@ -299,6 +299,7 @@ static esp_err_t i2s_play_wav(esp_wav_player_t *player, wav_obj_t *wav)
 	}
 	wav_object_close(&wavh);
 	free(audio_buf);
+	i2s_zero_dma_buffer(i2s_port);
 	return ESP_OK;
 }
 
@@ -379,7 +380,7 @@ esp_err_t esp_wav_player_play_queued(esp_wav_player_t *player)
 	if(uxQueueMessagesWaiting(player->queue) == 0)
 		return ESP_ERR_NOT_FOUND;
 
-	if(xTaskCreate(wav_play_queue_task, "wav_play", 1024, player, player->task_priority, NULL) != pdPASS){
+	if(xTaskCreate(wav_play_queue_task, "wav_play", 2048, player, player->task_priority, NULL) != pdPASS){
 		ESP_LOGE(TAG, "cannot create play task");
 		return ESP_FAIL;
 	}
@@ -398,6 +399,7 @@ esp_err_t esp_wav_player_play(esp_wav_player_t *player, wav_obj_t *wav)
 
 esp_err_t esp_wav_player_stop(esp_wav_player_t *player)
 {
+	esp_wav_player_reset_queue(player);
 	esp_wav_player_set_playing_state(player,false);
 	return ESP_OK;
 }

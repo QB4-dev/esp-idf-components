@@ -8,7 +8,7 @@
 #include <freertos/semphr.h>
 #include <esp_system.h>
 #include <esp_err.h>
-#include <driver/i2s.h>
+#include <spiffs_config.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,11 +21,11 @@ typedef enum {
 } wav_obj_type_t;
 
 struct embed_wav_data{
-	uint8_t *addr;
+	const uint8_t *addr;
 };
 
 struct spiffs_wav_data{
-	const char *path;
+	char path[SPIFFS_OBJ_NAME_LEN];
 };
 
 typedef struct {

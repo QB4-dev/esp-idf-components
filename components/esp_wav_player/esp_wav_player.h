@@ -19,17 +19,15 @@ extern "C" {
 typedef struct {
 	SemaphoreHandle_t mutex;
 	i2s_port_t i2s_port;
-	i2s_config_t i2s_config;
-	i2s_pin_config_t i2s_pin_config;
 	uint8_t task_priority;
 	uint8_t volume;
 	bool is_playing;
-	bool tda_1543_mode;  //for TDA1543
+	bool tda1543_mode;  //for TDA1543
 	uint8_t queue_len;
 	QueueHandle_t queue;
 }esp_wav_player_t;
 
-esp_err_t esp_wav_player_init(esp_wav_player_t *player);
+esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pin_conf, i2s_config_t *i2s_conf);
 esp_err_t esp_wav_player_deinit(esp_wav_player_t *player);
 
 esp_err_t esp_wav_player_is_playing(esp_wav_player_t *player, bool *state);
