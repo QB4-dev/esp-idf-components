@@ -40,8 +40,8 @@ typedef struct {
 typedef struct {
 	wav_obj_type_t type;
 	union {
-		uint8_t *embed_rdptr; //embedded data read pointer
-		int      spiffs_fd;   //SPIFFS file descriptor
+		const uint8_t *embed_rdptr; //embedded data read pointer
+		int spiffs_fd;   //SPIFFS file descriptor
 	}io;
 }wav_handle_t;
 

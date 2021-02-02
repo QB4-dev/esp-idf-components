@@ -104,8 +104,8 @@ esp_err_t wifi_info_handler(httpd_req_t *req)
 	char *js_txt = cJSON_Print(js);
 	cJSON_Delete(js);
 
-	ESP_ERROR_CHECK(httpd_resp_set_type(req,HTTPD_TYPE_JSON));
-	ESP_ERROR_CHECK(httpd_resp_send(req, js_txt, -1));
+	httpd_resp_set_type(req,HTTPD_TYPE_JSON);
+	httpd_resp_send(req, js_txt, -1);
 	free(js_txt);
 	return ESP_OK;
 }
@@ -145,8 +145,8 @@ esp_err_t wifi_scan_handler(httpd_req_t *req)
 	if(!js_txt)
 		return ESP_FAIL;
 
-	ESP_ERROR_CHECK(httpd_resp_set_type(req,HTTPD_TYPE_JSON));
-	ESP_ERROR_CHECK(httpd_resp_send(req, js_txt, -1));
+	httpd_resp_set_type(req,HTTPD_TYPE_JSON);
+	httpd_resp_send(req, js_txt, -1);
 	free(js_txt);
 	return ESP_OK;
 }
@@ -162,7 +162,7 @@ esp_err_t wifi_connect_handler(httpd_req_t *req)
 	wifi_config_t wifi_config = { 0 };
 	wifi_mode_t wifi_mode;
 
-	ESP_ERROR_CHECK(esp_wifi_get_mode(&wifi_mode));
+	esp_wifi_get_mode(&wifi_mode);
 	if(wifi_mode == WIFI_MODE_AP)
 		return ESP_FAIL;
 
@@ -195,12 +195,12 @@ esp_err_t wifi_connect_handler(httpd_req_t *req)
 	strncpy((char*)wifi_config.sta.ssid, ssid,32);
 	strncpy((char*)wifi_config.sta.password, password,64);
 
-	ESP_ERROR_CHECK(esp_wifi_disconnect());
-	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-	ESP_ERROR_CHECK(esp_wifi_connect());
+	esp_wifi_disconnect();
+	esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
+	esp_wifi_connect();
 
 	httpd_resp_set_status(req, "200 OK");
 	httpd_resp_set_type(req, HTTPD_TYPE_TEXT);
-	ESP_ERROR_CHECK(httpd_resp_send(req, "", -1));
+	httpd_resp_send(req, "", -1);
 	return ESP_OK;
 }

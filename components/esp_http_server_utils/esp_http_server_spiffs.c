@@ -5,13 +5,40 @@
 #include <esp_spiffs.h>
 #include <esp_partition.h>
 #include <esp_log.h>
-#include <spi_flash.h>
+#include <dirent.h>
+#include <unistd.h>
 #include <sys/param.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <cJSON.h>
 
 #include "esp_http_upload.h"
 
 static const char *TAG="SPIFFS";
+
+
+static cJSON *spiffs_file_list_to_json(const char *path)
+{
+	struct dirent* de;
+	DIR* dir = opendir(path);
+	if(!dir)
+		return NULL;
+
+	cJSON *js_array = cJSON_CreateArray();
+	if(!js_array){
+		closedir(dir);
+		return NULL;
+	}
+
+	while(true) {
+		de = readdir(dir);
+		if (!de)
+			break;
+		cJSON_AddItemToArray(js_array, cJSON_CreateString(de->d_name));
+	}
+	closedir(dir);
+	return js_array;
+}
 
 esp_err_t esp_httpd_spiffs_info_handler(httpd_req_t *req)
 {
@@ -32,6 +59,8 @@ esp_err_t esp_httpd_spiffs_info_handler(httpd_req_t *req)
 	cJSON_AddStringToObject(js,"result",esp_err_to_name(rc));
 	cJSON_AddNumberToObject(js,"used",used);
 	cJSON_AddNumberToObject(js,"total",total);
+	cJSON_AddNumberToObject(js,"percent",100*used/total);
+	cJSON_AddItemToObject(js,"files",spiffs_file_list_to_json(esp_vfs_spiffs_conf->base_path));
 
 	char *js_txt = cJSON_Print(js);
 	cJSON_Delete(js);

@@ -12,7 +12,7 @@
 #include "wav_header.h"
 
 #define PLAYER_ACCESS_TIMEOUT 1000 //ms
-#define PLAYER_DEFAULT_TASK_PRIO 5
+#define PLAYER_DEFAULT_TASK_PRIO 0
 
 #define AUDIO_BUF_LEN 1024
 #define FCC(a,b,c,d)  ((uint32_t) (( (d)<<24) | ((c)<<16) | ((b)<<8) | (a) )) /* FourCC */
