@@ -205,17 +205,6 @@ esp_err_t esp_httpd_spiffs_image_upload_handler(httpd_req_t *req)
 		return esp_http_upload_json_status(req,ESP_FAIL,0);
 	}
 
-	ESP_LOGI(TAG, "\"%s\" partition found, formating...",label);
-
-	if(esp_spiffs_mounted(label))
-		esp_vfs_spiffs_unregister(label);
-
-	rc = esp_partition_erase_range(spiffs_part, 0, spiffs_part->size);
-	if(rc != ESP_OK){
-		ESP_LOGE(TAG, "partition erase failed: err=0x%d",rc);
-		return esp_http_upload_json_status(req,ESP_FAIL,0);
-	}
-
 	rc = esp_http_get_boundary(req,boundary);
 	if( rc != ESP_OK)
 		return esp_http_upload_json_status(req,rc,0);
@@ -244,6 +233,22 @@ esp_err_t esp_httpd_spiffs_image_upload_handler(httpd_req_t *req)
 	if(binary_size == 0){
 		ESP_LOGE(TAG, "no file uploaded");
 		return esp_http_upload_json_status(req,ESP_ERR_NOT_FOUND,0);
+	}
+
+	if(binary_size > spiffs_part->size){
+		ESP_LOGE(TAG, "image file too big");
+		return esp_http_upload_json_status(req,ESP_ERR_INVALID_SIZE,0);
+	}
+
+	ESP_LOGI(TAG, "\"%s\" partition found, formating...",label);
+
+	if(esp_spiffs_mounted(label))
+		esp_vfs_spiffs_unregister(label);
+
+	rc = esp_partition_erase_range(spiffs_part, 0, spiffs_part->size);
+	if(rc != ESP_OK){
+		ESP_LOGE(TAG, "partition erase failed: err=0x%d",rc);
+		return esp_http_upload_json_status(req,ESP_FAIL,0);
 	}
 
 	//prepare buffer, keep in mind to free it before return call
