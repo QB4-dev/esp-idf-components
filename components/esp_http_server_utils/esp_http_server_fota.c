@@ -83,6 +83,12 @@ esp_err_t esp_httpd_fota_handler(httpd_req_t *req)
 	uint32_t to_read;
 	int32_t  recv;
 
+	if(binary_size == 0){
+		ESP_LOGE(TAG, "no file uploaded");
+		handle_ota_failed_action(ota_actions);
+		return esp_http_upload_json_status(req,ESP_ERR_NOT_FOUND,0);
+	}
+
 	//prepare buffer, keep in mind to free it before return call
 	char *buf = (char *)malloc(UPLOAD_BUF_LEN);
 	if(!buf){

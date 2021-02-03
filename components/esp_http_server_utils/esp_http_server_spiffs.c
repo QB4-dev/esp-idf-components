@@ -119,6 +119,12 @@ esp_err_t esp_httpd_spiffs_file_upload_handler(httpd_req_t *req)
 	int32_t  recv;
 	size_t   wr;
 
+	if(binary_size == 0){
+		fclose(f);
+		ESP_LOGE(TAG, "no file uploaded");
+		return esp_http_upload_json_status(req,ESP_ERR_NOT_FOUND,0);
+	}
+
 	//prepare buffer, keep in mind to free it before return call
 	char *buf = (char *)malloc(UPLOAD_BUF_LEN);
 	if(!buf){
@@ -186,15 +192,15 @@ esp_err_t esp_httpd_spiffs_image_upload_handler(httpd_req_t *req)
 		return esp_http_upload_json_status(req,ESP_ERR_INVALID_ARG,0);
 	}
 
-	const esp_partition_t *upload_part;
-	upload_part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,ESP_PARTITION_SUBTYPE_DATA_SPIFFS,label);
-	if(!upload_part){
+	const esp_partition_t *spiffs_part;
+	spiffs_part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,ESP_PARTITION_SUBTYPE_DATA_SPIFFS,label);
+	if(!spiffs_part){
 		ESP_LOGE(TAG, "partition %s not found",label);
 		return esp_http_upload_json_status(req,ESP_ERR_NOT_FOUND,0);
 	}
 
-	upload_part = esp_partition_verify(upload_part);
-	if(!upload_part){
+	spiffs_part = esp_partition_verify(spiffs_part);
+	if(!spiffs_part){
 		ESP_LOGE(TAG, "partition verify failed");
 		return esp_http_upload_json_status(req,ESP_FAIL,0);
 	}
@@ -204,7 +210,7 @@ esp_err_t esp_httpd_spiffs_image_upload_handler(httpd_req_t *req)
 	if(esp_spiffs_mounted(label))
 		esp_vfs_spiffs_unregister(label);
 
-	rc = esp_partition_erase_range(upload_part, 0, upload_part->size);
+	rc = esp_partition_erase_range(spiffs_part, 0, spiffs_part->size);
 	if(rc != ESP_OK){
 		ESP_LOGE(TAG, "partition erase failed: err=0x%d",rc);
 		return esp_http_upload_json_status(req,ESP_FAIL,0);
@@ -235,8 +241,10 @@ esp_err_t esp_httpd_spiffs_image_upload_handler(httpd_req_t *req)
 	uint32_t to_read;
 	int32_t  recv;
 
-	if(binary_size > upload_part->size)
-		ESP_LOGW(TAG,"binary_size(%db) > upload_part->size(%db) diff=%d",binary_size,upload_part->size, upload_part->size-binary_size);
+	if(binary_size == 0){
+		ESP_LOGE(TAG, "no file uploaded");
+		return esp_http_upload_json_status(req,ESP_ERR_NOT_FOUND,0);
+	}
 
 	//prepare buffer, keep in mind to free it before return call
 	char *buf = (char *)malloc(UPLOAD_BUF_LEN);
@@ -260,7 +268,7 @@ esp_err_t esp_httpd_spiffs_image_upload_handler(httpd_req_t *req)
 		}
 		bytes_left -= recv;
 
-		rc = esp_partition_write(upload_part,bytes_written,(const void *)buf,recv);
+		rc = esp_partition_write(spiffs_part,bytes_written,(const void *)buf,recv);
 		if(rc != ESP_OK){
 			ESP_LOGE(TAG, "image write error: err=0x%d", rc);
 			free(buf);
