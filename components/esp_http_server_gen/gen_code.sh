@@ -36,7 +36,7 @@ echo "	{.uri = \"/\", .method = HTTP_GET, .handler = esp_httpd_send_content, .us
 cd $SCRIPT_DIR
 SCRIPT_BASE=$(pwd)
 		
-for file in $(find $SERVER_DATA_DIR -regextype posix-extended -regex '.*\.(html|css|js|svg|png|jpg|jpeg)'); do
+for file in $(find $SERVER_DATA_DIR -regextype posix-extended -regex '.*\.(html|css|js|svg|png|jpg|jpeg|ico)'); do
 	url=$(echo /${file#$SERVER_DATA_DIR/})
 	file=$(basename ${file})
 	ext="."${file##*.}
@@ -55,6 +55,7 @@ for file in $(find $SERVER_DATA_DIR -regextype posix-extended -regex '.*\.(html|
 		".png")  content_type="image/png";;
 		".jpg")  content_type="image/jpeg";;
 		".jpeg") content_type="image/jpeg";;
+		".ico")  content_type="image/x-icon";;
 	  	*) echo "WARNING: $file - MIME type not recognized";;
 	esac
 	
