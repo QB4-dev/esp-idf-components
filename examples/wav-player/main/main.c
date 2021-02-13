@@ -1,4 +1,4 @@
-/* Simple HTTP Server Example
+/* Simple WAV playback example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -9,8 +9,6 @@
 
 #include <esp_system.h>
 #include <esp_log.h>
-#include <esp_event_loop.h>
-#include <tcpip_adapter.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
