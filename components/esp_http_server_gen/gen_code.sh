@@ -10,6 +10,11 @@ if [ -z "$SERVER_DATA_DIR" ] || [ -z "$GENERATED_DATA_DIR" ]; then
 	exit 1
 fi
 
+if [ ! -d  "$SERVER_DATA_DIR"  ]; then
+	echo "directory $SERVER_DATA_DIR not found"
+	exit 1
+fi
+
 mkdir -p $GENERATED_DATA_DIR
 
 DATA_SOURCE=$GENERATED_DATA_DIR/httpd_data.c

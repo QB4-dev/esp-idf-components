@@ -37,14 +37,11 @@ static const char *TAG="WAV";
 
 esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pin_conf, i2s_config_t *i2s_conf)
 {
-	esp_err_t rc;
-
 	player->mutex = xSemaphoreCreateMutex();
 	if (!player->mutex){
 		ESP_LOGE(TAG, "Could not create player mutex");
-		return ESP_FAIL;
+		return ESP_ERR_NO_MEM;
 	}
-	SEMAPHORE_TAKE(player);
 	ESP_ERROR_CHECK(i2s_driver_install(player->i2s_port, i2s_conf, 0, NULL));
 	ESP_ERROR_CHECK(i2s_set_pin(player->i2s_port, i2s_pin_conf));
 
@@ -61,13 +58,15 @@ esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pi
 	player->queue = xQueueCreate(player->queue_len,sizeof(wav_obj_t));
 	if(!player->queue){
 		ESP_LOGE(TAG, "cannot create player queue");
-		rc = ESP_ERR_NO_MEM;
-	} else {
-		ESP_LOGD(TAG, "player init OK");
-		rc = ESP_OK;
+		return ESP_ERR_NO_MEM;
 	}
-	SEMAPHORE_GIVE(player);
-	return rc;
+	player->event_group = xEventGroupCreate();
+	if(!player->event_group){
+		ESP_LOGE(TAG, "cannot create player event_group");
+		return ESP_ERR_NO_MEM;
+	}
+	ESP_LOGD(TAG, "player init OK");
+	return ESP_OK;
 }
 
 esp_err_t esp_wav_player_deinit(esp_wav_player_t *player)
@@ -78,12 +77,15 @@ esp_err_t esp_wav_player_deinit(esp_wav_player_t *player)
 	ESP_ERROR_CHECK(i2s_driver_uninstall(player->i2s_port));
 	if(player->queue)
 		vQueueDelete(player->queue);
+
+	if(player->event_group)
+		vEventGroupDelete(player->event_group);
 	SEMAPHORE_GIVE(player);
 	vSemaphoreDelete(player->mutex);
 	return ESP_OK;
 }
 
-esp_err_t esp_wav_player_is_playing(esp_wav_player_t *player, bool *state)
+esp_err_t esp_wav_player_get_play_state(esp_wav_player_t *player, bool *state)
 {
 	if(!player || !state)
 		return ESP_ERR_INVALID_ARG;
@@ -93,9 +95,16 @@ esp_err_t esp_wav_player_is_playing(esp_wav_player_t *player, bool *state)
 	return ESP_OK;
 }
 
-static esp_err_t esp_wav_player_set_playing_state(esp_wav_player_t *player, bool state)
+static esp_err_t esp_wav_player_set_play_state(esp_wav_player_t *player, bool state)
 {
 	SEMAPHORE_TAKE(player);
+	if(state == true){
+		xEventGroupSetBits(player->event_group, ESP_WAV_PLAYER_STARTED);
+		xEventGroupClearBits(player->event_group,ESP_WAV_PLAYER_STOPPED);
+	} else {
+		xEventGroupSetBits(player->event_group, ESP_WAV_PLAYER_STOPPED);
+		xEventGroupClearBits(player->event_group, ESP_WAV_PLAYER_STARTED);
+	}
 	player->is_playing = state;
 	SEMAPHORE_GIVE(player);
 	return ESP_OK;
@@ -264,16 +273,15 @@ static esp_err_t i2s_play_wav(esp_wav_player_t *player, wav_obj_t *wav)
 		ESP_LOGE(TAG, "audio buf malloc error");
 		return ESP_ERR_NO_MEM;
 	}
+	esp_wav_player_set_play_state(player,true);
 	SEMAPHORE_TAKE(player);
 	i2s_port = player->i2s_port;
-	player->is_playing = true;
-
 	i2s_set_clk(i2s_port, wav_props.sample_rate/div, wav_props.bit_depth, wav_props.num_channels);
 	i2s_start(i2s_port);
 	SEMAPHORE_GIVE(player);
 
 	while(bytes_left > 0){
-		esp_wav_player_is_playing(player,&keep_playing);
+		esp_wav_player_get_play_state(player,&keep_playing);
 		esp_wav_player_get_volume(player,&volume);
 
 		if(!keep_playing)
@@ -308,13 +316,10 @@ static void wav_play_queue_task(void *arg)
 	esp_wav_player_t *player = arg;
 	wav_obj_t wav_obj;
 
-	if(!player)
-		vTaskDelete(NULL);
-
 	while(xQueueReceive(player->queue,&wav_obj,100/portTICK_RATE_MS)){
 		i2s_play_wav(player,&wav_obj);
 	}
-	esp_wav_player_set_playing_state(player,false);
+	esp_wav_player_set_play_state(player,false);
 	vTaskDelete(NULL);
 }
 
@@ -324,12 +329,12 @@ static esp_err_t wav_is_valid(wav_obj_t *wav)
 	wav_handle_t wavh;
 
 	if(!wav_object_open(wav,&wavh)){
-		ESP_LOGE(TAG, "wav_obj open error");
+		ESP_LOGE(TAG, "invalid wav_obj open error");
 		return ESP_FAIL;
 	}
 
 	if( wav_object_read(&wavh, header_buf, sizeof(wav_header_t)) < 0){
-		ESP_LOGE(TAG, "wav_obj read error");
+		ESP_LOGE(TAG, "invalid wav_obj read error");
 		wav_object_close(&wavh);
 		return ESP_FAIL;
 	}
@@ -343,19 +348,31 @@ static esp_err_t wav_is_valid(wav_obj_t *wav)
 
 esp_err_t esp_wav_player_add_to_queue(esp_wav_player_t *player, wav_obj_t *wav)
 {
-	if(!wav)
-		return ESP_ERR_INVALID_ARG;
+	int rc = ESP_OK;
 
-	if(!player->queue)
-		return ESP_ERR_NOT_FOUND;
+	if(!player || !wav)
+		return ESP_ERR_INVALID_ARG;
 
 	if(!!wav_is_valid(wav))
-		return ESP_ERR_INVALID_ARG;
+		return ESP_FAIL;
 
+	SEMAPHORE_TAKE(player);
 	if(xQueueSend(player->queue,wav,100/portTICK_RATE_MS) == errQUEUE_FULL){
 		ESP_LOGE(TAG, "queue full");
-		return ESP_ERR_NO_MEM;
+		rc = ESP_ERR_NO_MEM;
 	}
+	SEMAPHORE_GIVE(player);
+	return rc;
+}
+
+esp_err_t esp_wav_player_get_queued(esp_wav_player_t *player, uint8_t *queued)
+{
+	if(!player || !queued)
+		return ESP_ERR_INVALID_ARG;
+
+	SEMAPHORE_TAKE(player);
+	*queued = uxQueueMessagesWaiting(player->queue);
+	SEMAPHORE_GIVE(player);
 	return ESP_OK;
 }
 
@@ -371,7 +388,7 @@ esp_err_t esp_wav_player_reset_queue(esp_wav_player_t *player)
 esp_err_t esp_wav_player_play_queued(esp_wav_player_t *player)
 {
 	bool playing;
-	ESP_ERROR_CHECK(esp_wav_player_is_playing(player,&playing));
+	esp_wav_player_get_play_state(player,&playing);
 	if(playing){
 		ESP_LOGW(TAG, "already playing");
 		return ESP_ERR_INVALID_STATE;
@@ -393,13 +410,13 @@ esp_err_t esp_wav_player_play(esp_wav_player_t *player, wav_obj_t *wav)
 	rc = esp_wav_player_add_to_queue(player,wav);
 	if(rc != ESP_OK)
 		return rc;
-
+		
 	return esp_wav_player_play_queued(player);
 }
 
 esp_err_t esp_wav_player_stop(esp_wav_player_t *player)
 {
 	esp_wav_player_reset_queue(player);
-	esp_wav_player_set_playing_state(player,false);
+	esp_wav_player_set_play_state(player,false);
 	return ESP_OK;
 }

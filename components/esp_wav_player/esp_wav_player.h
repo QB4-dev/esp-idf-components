@@ -6,6 +6,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <freertos/event_groups.h>
 #include <esp_system.h>
 #include <esp_err.h>
 #include <driver/i2s.h>
@@ -25,12 +26,17 @@ typedef struct {
 	bool tda1543_mode;  //for TDA1543
 	uint8_t queue_len;
 	QueueHandle_t queue;
+	EventGroupHandle_t event_group;
 }esp_wav_player_t;
+
+/* wav player events */
+#define ESP_WAV_PLAYER_STARTED BIT0
+#define ESP_WAV_PLAYER_STOPPED BIT1
 
 esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pin_conf, i2s_config_t *i2s_conf);
 esp_err_t esp_wav_player_deinit(esp_wav_player_t *player);
 
-esp_err_t esp_wav_player_is_playing(esp_wav_player_t *player, bool *state);
+esp_err_t esp_wav_player_get_play_state(esp_wav_player_t *player, bool *state);
 
 esp_err_t esp_wav_player_set_volume(esp_wav_player_t *player, uint8_t vol);
 esp_err_t esp_wav_player_get_volume(esp_wav_player_t *player, uint8_t *vol);
@@ -39,6 +45,7 @@ esp_err_t esp_wav_player_play(esp_wav_player_t *player, wav_obj_t *wav);
 esp_err_t esp_wav_player_stop(esp_wav_player_t *player);
 
 esp_err_t esp_wav_player_add_to_queue(esp_wav_player_t *player, wav_obj_t *wav);
+esp_err_t esp_wav_player_get_queued(esp_wav_player_t *player, uint8_t *queued);
 esp_err_t esp_wav_player_reset_queue(esp_wav_player_t *player);
 esp_err_t esp_wav_player_play_queued(esp_wav_player_t *player);
 
