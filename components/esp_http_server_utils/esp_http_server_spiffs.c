@@ -16,7 +16,6 @@
 
 static const char *TAG="SPIFFS";
 
-
 static cJSON *spiffs_file_list_to_json(const char *path)
 {
 	struct dirent* de;
@@ -42,8 +41,10 @@ static cJSON *spiffs_file_list_to_json(const char *path)
 
 esp_err_t esp_httpd_spiffs_info_handler(httpd_req_t *req)
 {
+	char*  buf;
+	size_t buf_len;
 	size_t total = 0, used = 0;
-	esp_err_t rc;
+	esp_err_t rc = ESP_OK;
 
 	const esp_vfs_spiffs_conf_t *esp_vfs_spiffs_conf = req->user_ctx;
 	if(!esp_vfs_spiffs_conf){
@@ -51,11 +52,27 @@ esp_err_t esp_httpd_spiffs_info_handler(httpd_req_t *req)
 		return ESP_ERR_INVALID_ARG;
 	}
 
+	buf_len = httpd_req_get_url_query_len(req) + 1;
+	if(buf_len > 1) {
+		buf = malloc(buf_len);
+		if(!buf)
+			return ESP_ERR_NO_MEM;
+
+		if(httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+			char param[32];
+			if(httpd_query_key_value(buf, "remove", param, sizeof(param)) == ESP_OK) {
+				ESP_LOGI(TAG, "found URL query parameter -> remove=%s", param);
+				rc = unlink(param);
+			}
+		}
+		free(buf);
+	}
+
 	cJSON* js = cJSON_CreateObject();
 	if(!js)
 		return ESP_FAIL;
 
-	rc = esp_spiffs_info(esp_vfs_spiffs_conf->partition_label, &total, &used);
+	esp_spiffs_info(esp_vfs_spiffs_conf->partition_label, &total, &used);
 	cJSON_AddStringToObject(js,"result",esp_err_to_name(rc));
 	cJSON_AddNumberToObject(js,"used",used);
 	cJSON_AddNumberToObject(js,"total",total);

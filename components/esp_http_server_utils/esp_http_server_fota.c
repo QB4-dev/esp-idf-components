@@ -13,7 +13,7 @@ static const char *TAG="FOTA";
 static void handle_ota_failed_action(esp_ota_actions_t *ota_actions)
 {
 	if(ota_actions && ota_actions->on_update_failed)
-			ota_actions->on_update_failed(ota_actions->arg);
+		ota_actions->on_update_failed(ota_actions->arg);
 }
 
 esp_err_t esp_httpd_fota_handler(httpd_req_t *req)
@@ -95,7 +95,7 @@ esp_err_t esp_httpd_fota_handler(httpd_req_t *req)
 		handle_ota_failed_action(ota_actions);
 		return esp_http_upload_json_status(req,ESP_ERR_NO_MEM,0);
 	}
-
+	ESP_LOGI(TAG, "uploading firmware...");
 	while(bytes_written < binary_size) {
 		if(bytes_left > UPLOAD_BUF_LEN)
 			to_read = MIN(bytes_left, UPLOAD_BUF_LEN);
@@ -108,8 +108,8 @@ esp_err_t esp_httpd_fota_handler(httpd_req_t *req)
 			if (recv == HTTPD_SOCK_ERR_TIMEOUT)
 				continue;
 			free(buf);
-			handle_ota_failed_action(ota_actions);
 			ESP_LOGE(TAG, "httpd_req_recv error: err=0x%d", recv);
+			handle_ota_failed_action(ota_actions);
 			return esp_http_upload_json_status(req,ESP_FAIL,bytes_written);
 		}
 		bytes_left -= recv;
@@ -118,8 +118,8 @@ esp_err_t esp_httpd_fota_handler(httpd_req_t *req)
 		ota_err = esp_ota_write(update_handle, (const void *)buf, recv);
 		if(ota_err != ESP_OK){
 			free(buf);
+			ESP_LOGE(TAG, "esp_ota_write error: err=0x%d", recv);
 			handle_ota_failed_action(ota_actions);
-			ESP_LOGE(TAG, "httpd_req_recv error: err=0x%d", recv);
 			return esp_http_upload_json_status(req,ESP_FAIL,bytes_written);
 		}
 		bytes_written+=recv;
@@ -134,13 +134,12 @@ esp_err_t esp_httpd_fota_handler(httpd_req_t *req)
 		handle_ota_failed_action(ota_actions);
 		return esp_http_upload_json_status(req,ESP_FAIL,bytes_written);
 	}
-
 	ESP_LOGI(TAG,"%d firmware bytes uploaded OK",bytes_written);
-
 
 	ota_err = esp_ota_end(update_handle);
 	if (ota_err != ESP_OK) {
 		ESP_LOGE(TAG, "esp_ota_end failed! err=0x%d. Image is invalid", ota_err);
+		handle_ota_failed_action(ota_actions);
 		return esp_http_upload_json_status(req,ota_err,bytes_written);
 	}
 
@@ -161,6 +160,7 @@ esp_err_t esp_httpd_fota_handler(httpd_req_t *req)
 		ESP_LOGI(TAG, "reboot skipped");
 	} else {
 		ESP_LOGI(TAG, "esp reboot..");
+		vTaskDelay(1000/portTICK_RATE_MS);//let esp send response before reboot
 		esp_restart();
 	}
 	return ESP_OK;

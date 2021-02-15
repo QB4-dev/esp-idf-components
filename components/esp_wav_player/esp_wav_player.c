@@ -37,6 +37,8 @@ static const char *TAG="WAV";
 
 esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pin_conf, i2s_config_t *i2s_conf)
 {
+	gpio_config_t io_conf = {0};
+
 	player->mutex = xSemaphoreCreateMutex();
 	if (!player->mutex){
 		ESP_LOGE(TAG, "Could not create player mutex");
@@ -65,6 +67,14 @@ esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pi
 		ESP_LOGE(TAG, "cannot create player event_group");
 		return ESP_ERR_NO_MEM;
 	}
+
+	if(player->has_amp_pwr_ctl){
+		io_conf.mode = GPIO_MODE_OUTPUT;
+		io_conf.intr_type = GPIO_INTR_DISABLE;
+		io_conf.pin_bit_mask = (1 << player->amp_power_gpio);
+		ESP_ERROR_CHECK(gpio_config(&io_conf));
+	}
+
 	ESP_LOGD(TAG, "player init OK");
 	return ESP_OK;
 }
@@ -128,6 +138,20 @@ esp_err_t esp_wav_player_get_volume(esp_wav_player_t *player, uint8_t *vol)
 
 	SEMAPHORE_TAKE(player);
 	*vol = player->volume;
+	SEMAPHORE_GIVE(player);
+	return ESP_OK;
+}
+
+static esp_err_t esp_wav_player_amp_power_ctl(esp_wav_player_t *player, bool amp_enable)
+{
+	SEMAPHORE_TAKE(player);
+	if(amp_enable == true){
+		gpio_set_level(player->amp_power_gpio,1);
+		vTaskDelay(player->amp_power_on_delay/portTICK_RATE_MS);
+	} else {
+		vTaskDelay(player->amp_power_off_delay/portTICK_RATE_MS);
+		gpio_set_level(player->amp_power_gpio,0);
+	}
 	SEMAPHORE_GIVE(player);
 	return ESP_OK;
 }
@@ -316,9 +340,16 @@ static void wav_play_queue_task(void *arg)
 	esp_wav_player_t *player = arg;
 	wav_obj_t wav_obj;
 
+	if(player->has_amp_pwr_ctl)
+		esp_wav_player_amp_power_ctl(player,true);
+
 	while(xQueueReceive(player->queue,&wav_obj,100/portTICK_RATE_MS)){
 		i2s_play_wav(player,&wav_obj);
 	}
+
+	if(player->has_amp_pwr_ctl)
+		esp_wav_player_amp_power_ctl(player,false);
+
 	esp_wav_player_set_play_state(player,false);
 	vTaskDelete(NULL);
 }
@@ -388,13 +419,16 @@ esp_err_t esp_wav_player_reset_queue(esp_wav_player_t *player)
 esp_err_t esp_wav_player_play_queued(esp_wav_player_t *player)
 {
 	bool playing;
+	uint8_t queued;
+
 	esp_wav_player_get_play_state(player,&playing);
 	if(playing){
 		ESP_LOGW(TAG, "already playing");
 		return ESP_ERR_INVALID_STATE;
 	}
 
-	if(uxQueueMessagesWaiting(player->queue) == 0)
+	esp_wav_player_get_queued(player,&queued);
+	if(queued == 0)
 		return ESP_ERR_NOT_FOUND;
 
 	if(xTaskCreate(wav_play_queue_task, "wav_play", 2048, player, player->task_priority, NULL) != pdPASS){

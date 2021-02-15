@@ -9,6 +9,7 @@
 #include <freertos/event_groups.h>
 #include <esp_system.h>
 #include <esp_err.h>
+#include <driver/gpio.h>
 #include <driver/i2s.h>
 
 #include <esp_wav_object.h>
@@ -27,6 +28,11 @@ typedef struct {
 	uint8_t queue_len;
 	QueueHandle_t queue;
 	EventGroupHandle_t event_group;
+
+	bool has_amp_pwr_ctl;
+	gpio_num_t amp_power_gpio;
+	int amp_power_on_delay;
+	int amp_power_off_delay;
 }esp_wav_player_t;
 
 /* wav player events */
@@ -48,7 +54,6 @@ esp_err_t esp_wav_player_add_to_queue(esp_wav_player_t *player, wav_obj_t *wav);
 esp_err_t esp_wav_player_get_queued(esp_wav_player_t *player, uint8_t *queued);
 esp_err_t esp_wav_player_reset_queue(esp_wav_player_t *player);
 esp_err_t esp_wav_player_play_queued(esp_wav_player_t *player);
-
 
 #ifdef __cplusplus
 }
