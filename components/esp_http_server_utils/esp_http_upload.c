@@ -44,8 +44,10 @@ esp_err_t esp_http_get_boundary(httpd_req_t *req, char *boundary)
 		return ESP_ERR_NO_MEM;
 
 	rc = httpd_req_get_hdr_value_str(req, "Content-Type", buf, buf_len);
-	if(rc != ESP_OK)
+	if(rc != ESP_OK){
+		free(buf);
 		return rc;
+	}
 
 	if(get_boundary_str(buf,boundary)){
 		ESP_LOGD(TAG,"boundary=%s", boundary);
