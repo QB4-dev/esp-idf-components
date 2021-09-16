@@ -325,13 +325,16 @@ static esp_err_t i2s_play_wav(esp_wav_player_t *player, wav_obj_t *wav)
 			i2s_tda_compat(&wav_props,audio_buf,AUDIO_BUF_LEN);
 
 		for(size_t i2s_wr = 0;audio_ptr-audio_buf < in_buf;){
-			i2s_write(i2s_port,audio_ptr,in_buf,&i2s_wr,100/portTICK_RATE_MS);
+			i2s_write(i2s_port,audio_ptr,in_buf,&i2s_wr,500/portTICK_RATE_MS);
 			audio_ptr += i2s_wr;
 		}
 	}
 	wav_object_close(&wavh);
 	free(audio_buf);
-	i2s_zero_dma_buffer(i2s_port);
+	//AUDIO_BUF_LEN/wav_props.sample_rate
+
+	vTaskDelay(300/portTICK_RATE_MS); //TODO calculate depending on sampling rate
+	//i2s_zero_dma_buffer(i2s_port);
 	return ESP_OK;
 }
 
@@ -343,9 +346,11 @@ static void wav_play_queue_task(void *arg)
 	if(player->has_amp_pwr_ctl)
 		esp_wav_player_amp_power_ctl(player,true);
 
-	while(xQueueReceive(player->queue,&wav_obj,100/portTICK_RATE_MS)){
+	ESP_LOGD(TAG, "queue start");
+	while(xQueueReceive(player->queue,&wav_obj,1000/portTICK_RATE_MS)){
 		i2s_play_wav(player,&wav_obj);
 	}
+	ESP_LOGD(TAG, "queue end");
 
 	if(player->has_amp_pwr_ctl)
 		esp_wav_player_amp_power_ctl(player,false);

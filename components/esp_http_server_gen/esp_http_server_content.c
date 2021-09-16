@@ -9,7 +9,7 @@ esp_err_t esp_httpd_send_content(httpd_req_t *req)
 {
 	esp_httpd_content_t *content = (esp_httpd_content_t*)req->user_ctx;
 
-	ESP_ERROR_CHECK(httpd_resp_set_type(req,content->type));
-	ESP_ERROR_CHECK(httpd_resp_send(req, (const char*)content->data, content->len));
+	httpd_resp_set_type(req,content->type);
+	httpd_resp_send(req, (const char*)content->data, content->len);
 	return ESP_OK;
 }

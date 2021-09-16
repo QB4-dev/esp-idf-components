@@ -14,7 +14,7 @@ static const char *TAG="WiFi";
 
 static cJSON *ap_record_to_json(wifi_ap_record_t *ap_info)
 {
-	char mac_buf[16];
+	char mac_buf[24];
 	cJSON *js = cJSON_CreateObject();
 	if(!js)
 		return NULL;

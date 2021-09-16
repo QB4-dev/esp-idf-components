@@ -50,6 +50,7 @@ typedef struct {
 	uint8_t  num_channels;
 	uint8_t  bit_depth;
 	uint32_t sample_rate;
+	uint32_t byte_rate;
 	uint32_t sample_alignment;
 	uint32_t data_bytes;
 }wav_properties_t;
