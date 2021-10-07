@@ -50,7 +50,6 @@ for file in $(find $SERVER_DATA_DIR -regextype posix-extended -regex '.*\.(html|
 	blob_size=$(echo  _binary_${vname}_size)
 	
 	#echo "$file  -> $blob_start size: $blob_size type: $ext url: $url"
-	
 	content_type="text/plain" #default
 	case $ext in
 		".html") content_type="text/html";;
@@ -77,6 +76,4 @@ done
 echo "};" >> $HNDLR_SOURCE
 echo ""   >> $HNDLR_SOURCE
 echo "const size_t generated_handlers_num = sizeof(generated_handlers)/sizeof(generated_handlers[0]);"   >> $HNDLR_SOURCE
-
-echo "$FILE_LIST"
 exit 0

@@ -316,7 +316,6 @@ static esp_err_t i2s_play_wav(esp_wav_player_t *player, wav_obj_t *wav)
 			ESP_LOGE(TAG, "wav obj read error");
 			break;
 		}
-
 		audio_ptr = audio_buf;
 		bytes_left -= in_buf;
 
@@ -324,6 +323,7 @@ static esp_err_t i2s_play_wav(esp_wav_player_t *player, wav_obj_t *wav)
 		if(player->tda1543_mode)
 			i2s_tda_compat(&wav_props,audio_buf,AUDIO_BUF_LEN);
 
+		
 		for(size_t i2s_wr = 0;audio_ptr-audio_buf < in_buf;){
 			i2s_write(i2s_port,audio_ptr,in_buf,&i2s_wr,500/portTICK_RATE_MS);
 			audio_ptr += i2s_wr;
