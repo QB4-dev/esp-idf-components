@@ -15,9 +15,9 @@ extern "C" {
 #endif
 
 typedef enum {
-	WAV_NONE   = 0,
-	WAV_EMBED  = 1,
-	WAV_SPIFFS = 2,
+	WAV_NONE   = 0, //wav type not set
+	WAV_EMBED  = 1, //wav file embedded in program code
+	WAV_SPIFFS = 2  //wav file in spiffs filesystem
 } wav_obj_type_t;
 
 struct embed_wav_data{
@@ -30,13 +30,13 @@ struct spiffs_wav_data{
 
 typedef struct {
 	wav_obj_type_t type;
-
 	union {
 		struct embed_wav_data  embed;
 		struct spiffs_wav_data spiffs;
 	}data;
 }wav_obj_t;
 
+//common wav object handle used to open/read wav objects
 typedef struct {
 	wav_obj_type_t type;
 	union {
@@ -45,7 +45,7 @@ typedef struct {
 	}io;
 }wav_handle_t;
 
-//Common .wav file properties
+//common .wav file properties
 typedef struct {
 	uint8_t  num_channels;
 	uint8_t  bit_depth;

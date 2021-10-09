@@ -44,6 +44,7 @@ esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pi
 		ESP_LOGE(TAG, "Could not create player mutex");
 		return ESP_ERR_NO_MEM;
 	}
+	SEMAPHORE_TAKE(player);
 	ESP_ERROR_CHECK(i2s_driver_install(player->i2s_port, i2s_conf, 0, NULL));
 	ESP_ERROR_CHECK(i2s_set_pin(player->i2s_port, i2s_pin_conf));
 
@@ -59,11 +60,13 @@ esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pi
 	}
 	player->queue = xQueueCreate(player->queue_len,sizeof(wav_obj_t));
 	if(!player->queue){
+		SEMAPHORE_GIVE(player);
 		ESP_LOGE(TAG, "cannot create player queue");
 		return ESP_ERR_NO_MEM;
 	}
 	player->event_group = xEventGroupCreate();
 	if(!player->event_group){
+		SEMAPHORE_GIVE(player);
 		ESP_LOGE(TAG, "cannot create player event_group");
 		return ESP_ERR_NO_MEM;
 	}
@@ -76,6 +79,7 @@ esp_err_t esp_wav_player_init(esp_wav_player_t *player, i2s_pin_config_t *i2s_pi
 	}
 
 	ESP_LOGD(TAG, "player init OK");
+	SEMAPHORE_GIVE(player);
 	return ESP_OK;
 }
 

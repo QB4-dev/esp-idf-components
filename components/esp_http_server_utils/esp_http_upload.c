@@ -27,7 +27,7 @@ static bool get_boundary_str(const char *content, char *boundary)
 		return false;
 
 	snprintf(boundary,BOUNDARY_LEN,"--%s",bound); //additional "--"
-		return true;
+	return true;
 }
 
 esp_err_t esp_http_get_boundary(httpd_req_t *req, char *boundary)
