@@ -1,4 +1,4 @@
-version: 1.0.10
+version: 1.0.11
 description: Settings component for ESP-IDF/ESP8266_RTOS_SDK
 repository: https://github.com/QB4-dev/esp-idf-components
 url: https://github.com/QB4-dev/esp-idf-components/tree/master/components/esp-settings
