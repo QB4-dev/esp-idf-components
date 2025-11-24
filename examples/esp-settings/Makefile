@@ -4,5 +4,6 @@
 #
 
 PROJECT_NAME := esp_settings
+EXTRA_COMPONENT_DIRS := $(CURDIR)/../../components
 
 include $(IDF_PATH)/make/project.mk
