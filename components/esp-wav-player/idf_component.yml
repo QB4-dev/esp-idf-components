@@ -1,23 +1,15 @@
-version: "1.0.0"
-description: "ESP i2s wav files player for ESP-IDF"
-url: https://github.com/QB4-dev/esp_wav_player
-documentation: https://github.com/QB4-dev/esp_wav_player/blob/master/README.md
-repository: https://github.com/QB4-dev/esp_wav_player
-issues: https://github.com/QB4-dev/esp_wav_player/issues
-
-dependencies:
-  idf:
-    version: ">=4.4"
-
-maintainers:
-  - Jakub Turek <qb4.dev@gmail.com>
-
+version: 1.0.1
+description: ESP i2s wav files player fo ESP-IDF/ESP8266_RTOS_SDK
+repository: https://github.com/QB4-dev/esp-idf-components
+url: https://github.com/QB4-dev/esp-idf-components/tree/master/components/esp-wav-player
+documentation: https://github.com/QB4-dev/esp-idf-components/blob/master/components/esp-wav-player/README.md
+issues: https://github.com/QB4-dev/esp-idf-components/issues
+license: MIT
+examples:
+  - path: ../../examples/esp-wav-player
 tags:
   - i2s
   - wav
   - sound
-
-license: Apache-2.0
-
-examples:
-  - path: examples/default
+dependencies:
+  idf: '>=4.0'

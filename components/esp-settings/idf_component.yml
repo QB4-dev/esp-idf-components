@@ -1,13 +1,17 @@
-dependencies:
-  idf: '>=4.0'
+version: 1.0.10
 description: Settings component for ESP-IDF/ESP8266_RTOS_SDK
-documentation: https://github.com/QB4-dev/esp-settings/blob/master/README.md
-issues: https://github.com/QB4-dev/esp-settings/issues
+repository: https://github.com/QB4-dev/esp-idf-components
+url: https://github.com/QB4-dev/esp-idf-components/tree/master/components/esp-settings
+documentation: https://github.com/QB4-dev/esp-idf-components/blob/master/components/esp-settings/README.md
+issues: https://github.com/QB4-dev/esp-idf-components/issues
 license: MIT
-repository: https://github.com/QB4-dev/esp-settings
+examples:
+  - path: ../../examples/esp-settings
 tags:
   - settings
   - nvs
-  - httpdn
-url: https://github.com/QB4-dev/esp-settings
-version: 1.0.9
+  - httpd
+dependencies:
+  idf: '>=4.0'
+
+
