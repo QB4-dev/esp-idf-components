@@ -1,0 +1,22 @@
+version: "1.0.0"
+description: "Timezone data component for ESP-IDF"
+url: https://github.com/QB4-dev/esp-tzdata
+documentation: https://github.com/QB4-dev/esp-tzdata/blob/master/README.md
+repository: https://github.com/QB4-dev/esp-tzdata
+issues: https://github.com/QB4-dev/esp-tzdata/issues
+
+dependencies:
+  idf:
+    version: ">=4.4"
+
+maintainers:
+  - Jakub Turek <qb4.dev@gmail.com>
+
+tags:
+  - timezone
+  - tzdata
+
+license: GPL-2.0
+
+examples:
+

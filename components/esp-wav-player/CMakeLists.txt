@@ -1,0 +1,16 @@
+idf_component_register(
+    SRCS
+        "esp_wav_player.c"
+        "wav_handle.c"
+        "wav_backend_embed.c"
+        "wav_backend_file.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        driver
+        esp_timer
+        esp_system
+        spi_flash
+        fatfs
+        spiffs
+)

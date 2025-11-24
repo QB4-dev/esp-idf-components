@@ -1,0 +1,15 @@
+menu "SETTINGS config"
+
+    config SETTINGS_DATETIME_SUPPORT
+        bool "Support date and time settings"
+        default y
+
+    config SETTINGS_TIMEZONE_SUPPORT
+        bool "Support timezone settings"
+        default y
+
+    config SETTINGS_COLOR_SUPPORT
+        bool "Support color settings"
+        default y
+
+endmenu
