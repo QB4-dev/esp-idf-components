@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>Device config</title>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<link rel="stylesheet" href="style.css">
+	<script src="script.js"></script>
+</head>
+
+<body>
+	<div id="navbar" class="navbar">
+		<a class="logo" onclick="tab(event,'Conf')" id="default">ESP DEVICE</a>
+		<input class="menu-btn" type="checkbox" id="menu-btn" />
+		<label class="menu-icon" for="menu-btn"><span class="navicon"></span></label>
+		<ul class="menu">
+			<li><a onclick="tab(event,'Conf')">Config</a></li>
+		</ul>
+	</div>
+	<div id="Conf" class="tab">
+		<div id="brd">Loading ...</div>
+	</div>
+	</div>
+
+	<script>
+		//const esp_url="http://192.168.100.33";
+		const esp_url = "";
+
+		getSettingsForm();
+		document.getElementById("default").click();
+	</script>
+</body>
+
+</html>

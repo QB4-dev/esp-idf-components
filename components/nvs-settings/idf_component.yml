@@ -1,12 +1,12 @@
 version: 1.0.12
 description: Settings component for ESP-IDF/ESP8266_RTOS_SDK
 repository: https://github.com/QB4-dev/esp-idf-components
-url: https://github.com/QB4-dev/esp-idf-components/tree/master/components/esp-settings
-documentation: https://github.com/QB4-dev/esp-idf-components/blob/master/components/esp-settings/README.md
+url: https://github.com/QB4-dev/esp-idf-components/tree/master/components/nvs-settings
+documentation: https://github.com/QB4-dev/esp-idf-components/blob/master/components/nvs-settings/README.md
 issues: https://github.com/QB4-dev/esp-idf-components/issues
 license: MIT
 examples:
-  - path: ../../examples/esp-settings
+  - path: ../../examples/nvs-settings
 tags:
   - settings
   - nvs
