@@ -11,6 +11,7 @@ tags:
   - settings
   - nvs
   - httpd
+  - tree
 dependencies:
   idf: '>=4.0'
 

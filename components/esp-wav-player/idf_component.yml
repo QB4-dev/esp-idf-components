@@ -4,7 +4,7 @@ repository: https://github.com/QB4-dev/esp-idf-components
 url: https://github.com/QB4-dev/esp-idf-components/tree/master/components/esp-wav-player
 documentation: https://github.com/QB4-dev/esp-idf-components/blob/master/components/esp-wav-player/README.md
 issues: https://github.com/QB4-dev/esp-idf-components/issues
-license: MIT
+license: Apache-2.0
 examples:
   - path: ../../examples/esp-wav-player
 tags:
